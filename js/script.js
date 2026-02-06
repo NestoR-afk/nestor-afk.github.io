@@ -1,62 +1,105 @@
-mixed = false;
+const tracks = Array.from(document.querySelectorAll('audio'));
 
-let arr = [];
-var id;
+let queue = [];
+let currentIndex = -1;
+let isShuffle = false;
 
+/* ---------- helpers ---------- */
 
-    $("button#mix").click(function() {
-    mixed = true;
-    arr = [1,2,3,4,5,6,7,8];
-    arr.sort(() => Math.random() - 0.5);
-     document.getElementById(arr[0]).play();
-    });
-    
-$("button#next").click(function() {
-    if (!mixed) {
-        if (id < 8) {
-            id++;
-        document.getElementById(id).play();
-        }
-        } else {
-            arr = arr.filter(function(value, i, arr) {
-            return value != id;
-            });
-            if (arr.length != 0) {
-                document.getElementById(arr[0]).play();
-        } else {
-            mixed = false;
-        }
-        }
-});
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
 
-$(function () {
-    $("audio").on("play", function() {
-        $("audio").not(this).each(function(index, audio) {
-            audio.pause();
-            audio.timeline = 0;
-        });
-        id = Number($(this).attr("id"));
-    });
-});
-
-
-$(function() {
-    $("audio").on("ended", function next() {
-        id = Number($(this).attr("id"));
-        if (!mixed) {
-        if (id !=8) {
-            id++;
-        document.getElementById(id).play();
-        }
-        } else {
-            arr = arr.filter(function(value, i, arr) {
-            return value != id;
-            });
-            if (arr.length != 0) {
-                document.getElementById(arr[0]).play();
-        } else {
-            mixed = false;
-        }
+function stopAll(except = null) {
+    tracks.forEach(t => {
+        if (t !== except) {
+            t.pause();
+            t.currentTime = 0;
         }
     });
+}
+
+/* ---------- queue builders ---------- */
+
+function buildSequentialFrom(track) {
+    queue = [...tracks];
+    currentIndex = queue.indexOf(track);
+}
+
+function buildShuffleFrom(track) {
+    const rest = tracks.filter(t => t !== track);
+    shuffle(rest);
+    queue = [track, ...rest];
+    currentIndex = 0;
+}
+
+/* ---------- playback ---------- */
+
+function playCurrent() {
+    if (currentIndex < 0 || currentIndex >= queue.length) return;
+    stopAll(queue[currentIndex]);
+    queue[currentIndex].play();
+}
+
+function nextTrack() {
+    if (queue.length === 0) {
+        queue = [...tracks];
+        currentIndex = 0;
+        playCurrent();
+        return;
+    }
+
+    if (currentIndex === -1) {
+        return;
+    }
+
+    currentIndex++;
+    if (currentIndex >= queue.length) {
+
+        currentIndex = -1;
+        return;
+    }
+
+    playCurrent();
+}
+
+/* ---------- UI actions ---------- */
+
+function startShuffle() {
+    isShuffle = true;
+
+    queue = [...tracks];
+    shuffle(queue);
+
+    currentIndex = 0;
+    playCurrent();
+}
+
+function startSequential(track) {
+    isShuffle = false;
+    buildSequentialFrom(track);
+}
+
+/* ---------- events ---------- */
+
+document.getElementById('next').addEventListener('click', nextTrack);
+document.getElementById('mix').addEventListener('click', startShuffle);
+
+tracks.forEach(track => {
+    track.addEventListener('play', () => {
+        stopAll(track);
+
+        if (queue.length === 0) {
+            // первый запуск
+            isShuffle ? buildShuffleFrom(track) : buildSequentialFrom(track);
+        } else {
+            // синхронизация индекса
+            currentIndex = queue.indexOf(track);
+        }
+    });
+
+    track.addEventListener('ended', nextTrack);
 });
